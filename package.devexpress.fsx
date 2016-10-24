@@ -11,6 +11,14 @@ let folder = @"C:\testing\DevExpress 15.2\Components\Bin\Framework"
 
 let baseName = "DevExpress."
 
+let downloadNuget () =
+    use client = new System.Net.WebClient()
+
+    client.DownloadFile("https://dist.nuget.org/win-x86-commandline/latest/nuget.exe", "./nuget.exe")
+
+let downloadNugetIfNotExist () =
+    if File.Exists("./nuget.exe") |> not then downloadNuget ()
+
 let getTopology () =
   let graph = new QuickGraph.AdjacencyGraph<AssemblyDefinition, IEdge<AssemblyDefinition>>()
 
@@ -114,4 +122,5 @@ let writePackages () =
   Async.Parallel asyncs
   |> Async.RunSynchronously
 
+downloadNugetIfNotExist()
 writePackages()
