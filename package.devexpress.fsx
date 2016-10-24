@@ -176,7 +176,7 @@ let createPackagesForDirectory inputFolder =
     let outputFolder = 
         new DirectoryInfo(Path.Combine(__SOURCE_DIRECTORY__, "nugetpackages"))
         |> cleanOutput
-    let templateFile = FileInfo(Path.Combine(__SOURCE_DIRECTORY__, @"template.devexpress.nuspec"))
+    let templateFile = FileInfo(Path.Combine(__SOURCE_DIRECTORY__, @"template.nuspec"))
 
     let createTemplate = createNugetTemplate templateFile
     let createPackage = createNugetPackage (getNuget ()) outputFolder
