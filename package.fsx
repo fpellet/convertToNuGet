@@ -183,6 +183,7 @@ let createPackagesForDirectory inputFolder outputFolder =
     |> toGraph
     |> reverseDependencyOrder
     |> Seq.map (convertToPackage createTemplate)
+    |> Seq.map (fun p -> logfn "%A" p; p)
     |> Seq.iter createPackage
 
 let rec askSource () =
