@@ -22,18 +22,12 @@ let getNuget () =
     new FileInfo(Path.Combine(__SOURCE_DIRECTORY__, "nuget.exe"))
     |> ifNotExist downloadNuget
 
-type AssemblyFile = { File: FileInfo; Name: string; FullName: string; Dependencies: AssemblyDependency list; Version: string }
+type AssemblyFile = { File: FileInfo; Name: string; FullName: string; Dependencies: AssemblyDependency list; Version: string; Author: string; Copyright: string }
 and AssemblyDependency = 
     Assembly of AssemblyFileDependency
     | ExternalNuget of ExternalNuget
 and ExternalNuget = { Name: string; Version: string }
 and AssemblyFileDependency = { Name: string; FullName: string; Version: string }
-
-let getVersion (assembly: AssemblyDefinition) =
-  let versionAttributeTypeName = typeof<AssemblyFileVersionAttribute>.FullName
-  match assembly.CustomAttributes.FirstOrDefault(fun f ->f.AttributeType.FullName = versionAttributeTypeName) with
-  | null -> None
-  | a -> Some (a.ConstructorArguments.First().Value :?> string)
 
 let (|Prefix|_|) (p:string) (s:string) =
     if s.StartsWith(p) then
@@ -69,13 +63,15 @@ let extractAssemblyDependencies (assembly: AssemblyDefinition) =
 
 let convertToAssemblyFile (file: FileInfo) =
     let assembly = AssemblyDefinition.ReadAssembly(file.FullName)
-
+    let versionInfo = System.Diagnostics.FileVersionInfo.GetVersionInfo(file.FullName)
     {
         File = file
         Name = assembly.Name.Name
         FullName = assembly.FullName
         Dependencies = extractAssemblyDependencies assembly |> Seq.toList
-        Version = getVersion assembly |> Option.get
+        Version = versionInfo.ProductVersion
+        Copyright = versionInfo.LegalCopyright
+        Author = versionInfo.CompanyName
     }
 
 let searchAllAssemblies (folder: DirectoryInfo) =
@@ -123,9 +119,11 @@ type NugetPackage = {
     Dependencies: NugetDependencies
     Name: string
     Version: string
+    Author: string
+    Copyright: string
 }
 
-let createNugetPackage (nugetFile: FileInfo) (authors: string) (output: DirectoryInfo) (package: NugetPackage) =
+let createNugetPackage (nugetFile: FileInfo) (output: DirectoryInfo) (package: NugetPackage) =
     Fake.NuGetHelper.NuGet (
         fun p -> 
             {
@@ -136,9 +134,10 @@ let createNugetPackage (nugetFile: FileInfo) (authors: string) (output: Director
                 Dependencies = package.Dependencies
                 ToolPath = nugetFile.FullName
                 Description = package.Name
-                Authors = [authors]
+                Authors = [package.Author]
                 Version = package.Version
                 Project = package.Name
+                Copyright = package.Copyright
             }
         ) (package.TemplateFile.FullName)
 
@@ -163,6 +162,8 @@ let convertToPackage (createTemplate: AssemblyFile -> FileInfo) (assembly: Assem
         Version = assembly.Version
         Files = getFiles assembly |> Seq.toList
         Dependencies = getDependencies assembly |> Seq.toList
+        Author = assembly.Author
+        Copyright = assembly.Copyright
     }
 
 let cleanOutput (output: DirectoryInfo) =
@@ -178,7 +179,7 @@ let createPackagesForDirectory inputFolder =
     let templateFile = FileInfo(Path.Combine(__SOURCE_DIRECTORY__, @"template.devexpress.nuspec"))
 
     let createTemplate = createNugetTemplate templateFile
-    let createPackage = createNugetPackage (getNuget ()) "DevExpress" outputFolder
+    let createPackage = createNugetPackage (getNuget ()) outputFolder
 
     inputFolder
     |> searchAllAssemblies
