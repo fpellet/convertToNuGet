@@ -184,12 +184,11 @@ let convertToPackage (createTemplate: AssemblyFile -> FileInfo) (assembly: Assem
         Copyright = assembly.Copyright
     }
 
-let cleanOutput (output: DirectoryInfo) =
-    if output.Exists then output.Delete(true)
-    output.Create()
+let createIfNotExistsOutput (output: DirectoryInfo) =
+    if output.Exists |> not then output.Create()
 
 let createPackagesForDirectory inputFolder outputFolder =
-    outputFolder |> cleanOutput
+    outputFolder |> createIfNotExistsOutput
 
     let templateFile = FileInfo(Path.Combine(__SOURCE_DIRECTORY__, @"template.nuspec"))
 
