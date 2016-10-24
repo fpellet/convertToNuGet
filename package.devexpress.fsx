@@ -24,9 +24,10 @@ let getNuget () =
 
 type AssemblyFile = { File: FileInfo; Name: string; FullName: string; Dependencies: AssemblyDependency list; Version: string }
 and AssemblyDependency = 
-    Assembly of string
+    Assembly of AssemblyFileDependency
     | ExternalNuget of ExternalNuget
-and ExternalNuget = { Name: string; Version: string }  
+and ExternalNuget = { Name: string; Version: string }
+and AssemblyFileDependency = { Name: string; FullName: string; Version: string }
 
 let getVersion (assembly: AssemblyDefinition) =
   let versionAttributeTypeName = typeof<AssemblyFileVersionAttribute>.FullName
@@ -59,7 +60,7 @@ let excludeSystemAssemblies (assembly: AssemblyNameReference) =
 let convertToAssemblyDependency (assembly: AssemblyNameReference) =
     match assembly.Name with
     | "EntityFramework" -> ExternalNuget { Name = assembly.Name; Version = assembly.Version.ToString() }
-    | _ -> Assembly assembly.FullName
+    | _ -> Assembly { FullName = assembly.FullName; Name = assembly.Name; Version = assembly.Version.ToString() }
 
 let extractAssemblyDependencies (assembly: AssemblyDefinition) =
     assembly.MainModule.AssemblyReferences 
@@ -84,11 +85,11 @@ let addDependenciesInGraph addEdge (assembliesByFullName: System.Collections.Gen
     let getAssemblyByName dependency =
         match dependency with
         | ExternalNuget _ -> None
-        | Assembly assemblyName ->
-            if assembliesByFullName.ContainsKey(assemblyName) |> not
-            then traceError ("Missing dependency " + assemblyName)
+        | Assembly a ->
+            if assembliesByFullName.ContainsKey(a.FullName) |> not
+            then traceError ("Missing dependency " + a.FullName)
         
-            Some assembliesByFullName.[assemblyName]
+            Some assembliesByFullName.[a.FullName]
 
     assembly.Dependencies 
     |> Seq.map getAssemblyByName
@@ -96,7 +97,7 @@ let addDependenciesInGraph addEdge (assembliesByFullName: System.Collections.Gen
     |> Seq.map Option.get
     |> Seq.iter (fun d -> addEdge(assembly, d))
 
-let toGraph assemblies =
+let toGraph (assemblies: AssemblyFile seq) =
     let graph = new QuickGraph.AdjacencyGraph<AssemblyFile, IEdge<AssemblyFile>>()
     
     let assembliesByFullName = assemblies |> Seq.map (fun a -> a.FullName, a) |> dict
@@ -143,21 +144,10 @@ let createNugetPackage (nugetFile: FileInfo) (authors: string) (output: Director
             }
         ) (package.TemplateFile.FullName)
 
-let convertToPackage (createTemplate: AssemblyFile -> FileInfo) (graph: QuickGraph.AdjacencyGraph<AssemblyFile, IEdge<AssemblyFile>>) (assembly: AssemblyFile) =
-    let getAssemblyDependencies (assembly: AssemblyFile) =
-        match graph.TryGetOutEdges(assembly) with
-          | false, _ -> []
-          | true, deps ->
-            deps
-            |> Seq.map (fun e -> e.Target.Name, e.Target.Version)
-            |> Seq.toList
-
-    let getExternalNugetDepedencies (assembly: AssemblyFile) =
+let convertToPackage (createTemplate: AssemblyFile -> FileInfo) (assembly: AssemblyFile) =
+    let getDependencies (assembly: AssemblyFile) =
         assembly.Dependencies
-        |> Seq.map (function | Assembly _ -> None | ExternalNuget n -> (n.Name, n.Version) |> Some)
-        |> Seq.filter Option.isSome
-        |> Seq.map Option.get
-        |> Seq.toList
+        |> Seq.map (function | Assembly f -> f.Name, f.Version | ExternalNuget n -> n.Name, n.Version)
 
     let getFiles assembly =
         seq {
@@ -174,7 +164,7 @@ let convertToPackage (createTemplate: AssemblyFile -> FileInfo) (graph: QuickGra
         Name = assembly.Name
         Version = assembly.Version
         Files = getFiles assembly |> Seq.toList
-        Dependencies = getAssemblyDependencies assembly @ getExternalNugetDepedencies assembly
+        Dependencies = getDependencies assembly |> Seq.toList
     }
 
 let cleanOutput (output: DirectoryInfo) =
@@ -195,8 +185,8 @@ let createPackagesForDirectory inputFolder =
     inputFolder
     |> searchAllAssemblies
     |> toGraph
-    |> (fun g -> g |> reverseDependencyOrder |> Seq.map (convertToPackage createTemplate g))
+    |> reverseDependencyOrder
+    |> Seq.map (convertToPackage createTemplate)
     |> Seq.iter createPackage
-
 
 createPackagesForDirectory (DirectoryInfo(@"C:\Program Files (x86)\DevExpress 14.2\Components\Bin\Framework"))
