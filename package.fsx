@@ -110,8 +110,10 @@ let reverseDependencyOrder graph =
   a.SortedVertices
   |> Seq.rev
 
-let createNugetTemplate (templateFile: FileInfo) (assembly: AssemblyFile) : FileInfo =
-    templateFile
+let createNugetTemplate (templateFile: FileInfo) (output: DirectoryInfo) (assembly: AssemblyFile) : FileInfo =
+    let templateFileName = Path.Combine(output.FullName, assembly.Name + "." + templateFile.Name) 
+ 
+    templateFile.CopyTo(templateFileName) 
 
 type NugetPackage = {
     TemplateFile: FileInfo
@@ -175,7 +177,7 @@ let createPackagesForDirectory inputFolder outputFolder =
 
     let templateFile = FileInfo(Path.Combine(__SOURCE_DIRECTORY__, @"template.nuspec"))
 
-    let createTemplate = createNugetTemplate templateFile
+    let createTemplate = createNugetTemplate templateFile outputFolder
     let createPackage = createNugetPackage (getNuget ()) outputFolder
 
     inputFolder
