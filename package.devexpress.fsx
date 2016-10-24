@@ -8,17 +8,19 @@ open System.Linq
 open System.Reflection
 open Fake
 
-let folder = @"C:\Program Files (x86)\DevExpress 14.2\Components\Bin\Framework"
-
-let baseName = "DevExpress."
-
-let downloadNuget () =
+let downloadNuget (output: FileInfo) =
     use client = new System.Net.WebClient()
 
-    client.DownloadFile("https://dist.nuget.org/win-x86-commandline/latest/nuget.exe", "./nuget.exe")
+    client.DownloadFile("https://dist.nuget.org/win-x86-commandline/latest/nuget.exe", output.FullName)
 
-let downloadNugetIfNotExist () =
-    if File.Exists("./nuget.exe") |> not then downloadNuget ()
+let ifNotExist action (file: FileInfo) =
+    if file.Exists |> not then action file
+
+    file
+
+let getNuget () =
+    new FileInfo(Path.Combine(__SOURCE_DIRECTORY__, "nuget.exe"))
+    |> ifNotExist downloadNuget
 
 type AssemblyFile = { File: FileInfo; Name: string; FullName: string; Dependencies: string list; Version: string }
 
@@ -64,56 +66,83 @@ let reverseDependencyOrder graph =
   a.SortedVertices
   |> Seq.rev
 
-let publish (templateFile: FileInfo) (output: DirectoryInfo) (graph: QuickGraph.AdjacencyGraph<AssemblyFile, IEdge<AssemblyFile>>) (assemblies: AssemblyFile seq) =
-    
-    for a in assemblies do
+let createNugetTemplate (templateFile: FileInfo) (output: DirectoryInfo) (assembly: AssemblyFile) : FileInfo =
+    let templateFileName = Path.Combine(output.FullName, assembly.Name + "." + templateFile.Name)
 
-        let deps = 
-          match graph.TryGetOutEdges(a) with
+    templateFile.CopyTo(templateFileName)
+
+type NugetPackage = {
+    TemplateFile: FileInfo
+    Files: (string * string option * string option) list
+    Dependencies: NugetDependencies
+    Name: string
+    Version: string
+}
+
+let createNugetPackage (nugetFile: FileInfo) (authors: string) (output: DirectoryInfo) (package: NugetPackage) =
+    Fake.NuGetHelper.NuGet (
+        fun p -> 
+            {
+            p with
+                Files = package.Files
+                OutputPath = output.FullName
+                WorkingDir = output.FullName
+                Dependencies = package.Dependencies
+                ToolPath = nugetFile.FullName
+                Description = package.Name
+                Authors = [authors]
+                Version = package.Version
+                Project = package.Name
+            }
+        ) (package.TemplateFile.FullName)
+
+let convertToPackage (createTemplate: AssemblyFile -> FileInfo) (graph: QuickGraph.AdjacencyGraph<AssemblyFile, IEdge<AssemblyFile>>) (assembly: AssemblyFile) =
+    let getDependencies assembly =
+        match graph.TryGetOutEdges(assembly) with
           | false, _ -> []
           | true, deps ->
             deps
             |> Seq.map (fun e -> e.Target.Name, e.Target.Version)
             |> Seq.toList
 
-        let templateFileName = Path.Combine(output.FullName, a.Name + "." + templateFile.Name)
+    let getFiles assembly =
+        seq {
+            let assemblyFile = assembly.File.FullName
+            yield (assemblyFile, Some "lib/net40/", None)
+            
+            let docFile = assemblyFile.Replace(".dll", ".xml")
+            if File.Exists docFile 
+            then yield (docFile, Some "lib/net40", None)
+        }
 
-        templateFile.CopyTo(templateFileName)
-        
-        let fileNames = [
-          let assemblyFile = a.File
-          let docFile = new FileInfo(assemblyFile.FullName.Replace(".dll", ".xml"))
-          yield (assemblyFile.FullName, Some "lib/net40/", None)
-          if docFile.Exists then
-            yield (docFile.FullName, Some "lib/net40", None)
-        ]
-      
-        Fake.NuGetHelper.NuGet (
-            fun p -> 
-              {
-                p with
-                  Files = fileNames
-                  OutputPath = output.FullName
-                  WorkingDir = output.FullName
-                  Dependencies = deps
-                  ToolPath = Path.Combine(__SOURCE_DIRECTORY__, "nuget.exe")
-                  Description = a.Name
-                  Authors = ["DevExpress"]
-                  Version = a.Version
-                  Project = a.Name
-              }
-          ) templateFileName
+    {
+        TemplateFile = createTemplate assembly
+        Name = assembly.Name
+        Version = assembly.Version
+        Files = getFiles assembly |> Seq.toList
+        Dependencies = getDependencies assembly
+    }
 
-        trace a.Name
+let cleanOutput (output: DirectoryInfo) =
+    if output.Exists then output.Delete(true)
+    output.Create()
 
-let outputFolder = new DirectoryInfo(Path.Combine(__SOURCE_DIRECTORY__, "nugetpackages", baseName))
-let templateFile = FileInfo(Path.Combine(__SOURCE_DIRECTORY__, @"template.devexpress.nuspec"))
+    output
 
-if outputFolder.Exists then outputFolder.Delete(true)
-outputFolder.Create()
+let createPackagesForDirectory baseName inputFolder =
+    let outputFolder = 
+        new DirectoryInfo(Path.Combine(__SOURCE_DIRECTORY__, "nugetpackages", baseName))
+        |> cleanOutput
+    let templateFile = FileInfo(Path.Combine(__SOURCE_DIRECTORY__, @"template.devexpress.nuspec"))
 
-downloadNugetIfNotExist ()
-searchAllAssemblies baseName (DirectoryInfo(folder))
-|> toGraph
-|> (fun g -> g, reverseDependencyOrder g)
-|> (fun (g, a) -> publish templateFile outputFolder g a)
+    let createTemplate = createNugetTemplate templateFile outputFolder
+    let createPackage = createNugetPackage (getNuget ()) "DevExpress" outputFolder
+
+    inputFolder
+    |> searchAllAssemblies baseName
+    |> toGraph
+    |> (fun g -> g |> reverseDependencyOrder |> Seq.map (convertToPackage createTemplate g))
+    |> Seq.iter createPackage
+
+
+createPackagesForDirectory "DevExpress." (DirectoryInfo(@"C:\Program Files (x86)\DevExpress 14.2\Components\Bin\Framework"))
