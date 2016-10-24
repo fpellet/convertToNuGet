@@ -22,7 +22,11 @@ let getNuget () =
     new FileInfo(Path.Combine(__SOURCE_DIRECTORY__, "nuget.exe"))
     |> ifNotExist downloadNuget
 
-type AssemblyFile = { File: FileInfo; Name: string; FullName: string; Dependencies: string list; Version: string }
+type AssemblyFile = { File: FileInfo; Name: string; FullName: string; Dependencies: AssemblyDependency list; Version: string }
+and AssemblyDependency = 
+    Assembly of string
+    | ExternalNuget of ExternalNuget
+and ExternalNuget = { Name: string; Version: string }  
 
 let getVersion (assembly: AssemblyDefinition) =
   let versionAttributeTypeName = typeof<AssemblyFileVersionAttribute>.FullName
@@ -30,23 +34,66 @@ let getVersion (assembly: AssemblyDefinition) =
   | null -> None
   | a -> Some (a.ConstructorArguments.First().Value :?> string)
 
-let convertToAssemblyFile baseName (file: FileInfo) =
+let (|Prefix|_|) (p:string) (s:string) =
+    if s.StartsWith(p) then
+        Some(s.Substring(p.Length))
+    else
+        None
+
+let excludeSystemAssemblies (assembly: AssemblyNameReference) =
+    match assembly.Name with
+    | "System.Windows.Interactivity" -> true
+    | Prefix "System" _
+    | Prefix "Microsoft" _
+    | "mscorlib"
+    | "PresentationCore"
+    | "PresentationFramework"
+    | "UIAutomationClient"
+    | "UIAutomationTypes"
+    | "UIAutomationProvider"
+    | "ReachFramework"
+    | "WindowsFormsIntegration"
+    | "WindowsBase" -> false
+    | _ -> true
+
+let convertToAssemblyDependency (assembly: AssemblyNameReference) =
+    match assembly.Name with
+    | "EntityFramework" -> ExternalNuget { Name = assembly.Name; Version = assembly.Version.ToString() }
+    | _ -> Assembly assembly.FullName
+
+let extractAssemblyDependencies (assembly: AssemblyDefinition) =
+    assembly.MainModule.AssemblyReferences 
+    |> Seq.filter excludeSystemAssemblies
+    |> Seq.map convertToAssemblyDependency
+
+let convertToAssemblyFile (file: FileInfo) =
     let assembly = AssemblyDefinition.ReadAssembly(file.FullName)
 
     {
         File = file
         Name = assembly.Name.Name
         FullName = assembly.FullName
-        Dependencies = assembly.MainModule.AssemblyReferences |> Seq.map (fun r -> r.FullName) |> Seq.filter (fun r -> r.StartsWith(baseName)) |> Seq.toList
+        Dependencies = extractAssemblyDependencies assembly |> Seq.toList
         Version = getVersion assembly |> Option.get
     }
 
-let searchAllAssemblies baseName (folder: DirectoryInfo) =
-    folder.GetFiles(baseName + "*.dll") |> Seq.map (convertToAssemblyFile baseName)
+let searchAllAssemblies (folder: DirectoryInfo) =
+    folder.GetFiles("*.dll") |> Seq.map convertToAssemblyFile
 
 let addDependenciesInGraph addEdge (assembliesByFullName: System.Collections.Generic.IDictionary<string, AssemblyFile>) (assembly: AssemblyFile) =
+    let getAssemblyByName dependency =
+        match dependency with
+        | ExternalNuget _ -> None
+        | Assembly assemblyName ->
+            if assembliesByFullName.ContainsKey(assemblyName) |> not
+            then traceError ("Missing dependency " + assemblyName)
+        
+            Some assembliesByFullName.[assemblyName]
+
     assembly.Dependencies 
-    |> Seq.map (fun d -> assembliesByFullName.[d])
+    |> Seq.map getAssemblyByName
+    |> Seq.filter Option.isSome
+    |> Seq.map Option.get
     |> Seq.iter (fun d -> addEdge(assembly, d))
 
 let toGraph assemblies =
@@ -97,13 +144,20 @@ let createNugetPackage (nugetFile: FileInfo) (authors: string) (output: Director
         ) (package.TemplateFile.FullName)
 
 let convertToPackage (createTemplate: AssemblyFile -> FileInfo) (graph: QuickGraph.AdjacencyGraph<AssemblyFile, IEdge<AssemblyFile>>) (assembly: AssemblyFile) =
-    let getDependencies assembly =
+    let getAssemblyDependencies (assembly: AssemblyFile) =
         match graph.TryGetOutEdges(assembly) with
           | false, _ -> []
           | true, deps ->
             deps
             |> Seq.map (fun e -> e.Target.Name, e.Target.Version)
             |> Seq.toList
+
+    let getExternalNugetDepedencies (assembly: AssemblyFile) =
+        assembly.Dependencies
+        |> Seq.map (function | Assembly _ -> None | ExternalNuget n -> (n.Name, n.Version) |> Some)
+        |> Seq.filter Option.isSome
+        |> Seq.map Option.get
+        |> Seq.toList
 
     let getFiles assembly =
         seq {
@@ -120,7 +174,7 @@ let convertToPackage (createTemplate: AssemblyFile -> FileInfo) (graph: QuickGra
         Name = assembly.Name
         Version = assembly.Version
         Files = getFiles assembly |> Seq.toList
-        Dependencies = getDependencies assembly
+        Dependencies = getAssemblyDependencies assembly @ getExternalNugetDepedencies assembly
     }
 
 let cleanOutput (output: DirectoryInfo) =
@@ -129,9 +183,9 @@ let cleanOutput (output: DirectoryInfo) =
 
     output
 
-let createPackagesForDirectory baseName inputFolder =
+let createPackagesForDirectory inputFolder =
     let outputFolder = 
-        new DirectoryInfo(Path.Combine(__SOURCE_DIRECTORY__, "nugetpackages", baseName))
+        new DirectoryInfo(Path.Combine(__SOURCE_DIRECTORY__, "nugetpackages"))
         |> cleanOutput
     let templateFile = FileInfo(Path.Combine(__SOURCE_DIRECTORY__, @"template.devexpress.nuspec"))
 
@@ -139,10 +193,10 @@ let createPackagesForDirectory baseName inputFolder =
     let createPackage = createNugetPackage (getNuget ()) "DevExpress" outputFolder
 
     inputFolder
-    |> searchAllAssemblies baseName
+    |> searchAllAssemblies
     |> toGraph
     |> (fun g -> g |> reverseDependencyOrder |> Seq.map (convertToPackage createTemplate g))
     |> Seq.iter createPackage
 
 
-createPackagesForDirectory "DevExpress." (DirectoryInfo(@"C:\Program Files (x86)\DevExpress 14.2\Components\Bin\Framework"))
+createPackagesForDirectory (DirectoryInfo(@"C:\Program Files (x86)\DevExpress 14.2\Components\Bin\Framework"))
