@@ -1,12 +1,17 @@
 #r "packages/Mono.Cecil/lib/net40/Mono.Cecil.dll"
 #r "packages/QuickGraph/lib/net4/QuickGraph.dll"
 #r "packages/FAKE/tools/FakeLib.dll"
+#r "packages/NuGet.Core/lib/net40-Client/NuGet.Core.dll"
+#r "System.Xml.Linq"
 open Mono.Cecil
 open System.IO
 open QuickGraph
 open System.Linq
 open System.Reflection
+open NuGet
 open Fake
+
+let output = getBuildParamOrDefault "output" (Path.Combine(__SOURCE_DIRECTORY__, "nugetpackages")) |> DirectoryInfo
 
 let downloadNuget (output: FileInfo) =
     use client = new System.Net.WebClient()
@@ -28,6 +33,17 @@ and AssemblyDependency =
     | ExternalNuget of ExternalNuget
 and ExternalNuget = { Name: string; Version: string }
 and AssemblyFileDependency = { Name: string; FullName: string; Version: string }
+
+let checkIfNugetPackageExists' (name: string) (version: string) source =
+    let repo = PackageRepositoryFactory.Default.CreateRepository(source)
+    
+    repo.FindPackage(name, SemanticVersion.Parse(version)) <> null
+
+let nugetSources = [ output.FullName; "https://packages.nuget.org/api/v2" ]
+
+let checkIfNugetPackageExists (name: string) (version: string) =
+    nugetSources 
+    |> Seq.exists (checkIfNugetPackageExists' name version)
 
 let (|Prefix|_|) (p:string) (s:string) =
     if s.StartsWith(p) then
@@ -52,9 +68,9 @@ let excludeSystemAssemblies (assembly: AssemblyNameReference) =
     | _ -> true
 
 let convertToAssemblyDependency (assembly: AssemblyNameReference) =
-    match assembly.Name with
-    | "EntityFramework" -> ExternalNuget { Name = assembly.Name; Version = assembly.Version.ToString() }
-    | _ -> Assembly { FullName = assembly.FullName; Name = assembly.Name; Version = assembly.Version.ToString() }
+    if checkIfNugetPackageExists assembly.Name (assembly.Version.ToString())
+    then ExternalNuget { Name = assembly.Name; Version = assembly.Version.ToString() }
+    else Assembly { FullName = assembly.FullName; Name = assembly.Name; Version = assembly.Version.ToString() }
 
 let extractAssemblyDependencies (assembly: AssemblyDefinition) =
     assembly.MainModule.AssemblyReferences 
@@ -199,6 +215,5 @@ let source =
         if System.String.IsNullOrWhiteSpace(value) then askSource ()
         else value |> DirectoryInfo
     with _ -> askSource ()
-let output = getBuildParamOrDefault "output" (Path.Combine(__SOURCE_DIRECTORY__, "nugetpackages")) |> DirectoryInfo
 
 createPackagesForDirectory source output
