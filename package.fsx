@@ -170,12 +170,9 @@ let cleanOutput (output: DirectoryInfo) =
     if output.Exists then output.Delete(true)
     output.Create()
 
-    output
+let createPackagesForDirectory inputFolder outputFolder =
+    outputFolder |> cleanOutput
 
-let createPackagesForDirectory inputFolder =
-    let outputFolder = 
-        new DirectoryInfo(Path.Combine(__SOURCE_DIRECTORY__, "nugetpackages"))
-        |> cleanOutput
     let templateFile = FileInfo(Path.Combine(__SOURCE_DIRECTORY__, @"template.nuspec"))
 
     let createTemplate = createNugetTemplate templateFile
@@ -188,4 +185,17 @@ let createPackagesForDirectory inputFolder =
     |> Seq.map (convertToPackage createTemplate)
     |> Seq.iter createPackage
 
-createPackagesForDirectory (DirectoryInfo(@"C:\Program Files (x86)\DevExpress 14.2\Components\Bin\Framework"))
+let rec askSource () =
+    let value = getUserInput "Directory with dlls ? " |> DirectoryInfo
+    if value.Exists |> not then askSource ()
+    else value
+
+let source = 
+    try
+        let value = getBuildParamOrDefault "source" ""
+        if System.String.IsNullOrWhiteSpace(value) then askSource ()
+        else value |> DirectoryInfo
+    with _ -> askSource ()
+let output = getBuildParamOrDefault "output" (Path.Combine(__SOURCE_DIRECTORY__, "nugetpackages")) |> DirectoryInfo
+
+createPackagesForDirectory source output
