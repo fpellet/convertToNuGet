@@ -6,6 +6,7 @@ open System.IO
 open QuickGraph
 open System.Linq
 open System.Reflection
+open Fake
 
 let folder = @"C:\testing\DevExpress 15.2\Components\Bin\Framework"
 
@@ -41,7 +42,10 @@ let getTopology () =
   for a in assemblyDefinitions.Values do
     for r in a.MainModule.AssemblyReferences do
       if r.FullName.StartsWith baseName then
-        graph.AddEdge(new Edge<_>(a, assemblyDefinitions.[r.FullName])) |> ignore
+        if assemblyDefinitions.ContainsKey(r.FullName) |> not then trace ("Missing " + r.FullName)
+
+        if assemblyDefinitions.ContainsKey(r.FullName) then
+            graph.AddEdge(new Edge<_>(a, assemblyDefinitions.[r.FullName])) |> ignore
   
   graph, filenameByAssembly
 
