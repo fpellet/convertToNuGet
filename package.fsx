@@ -168,7 +168,7 @@ let createNugetPackage (nugetFile: FileInfo) (output: DirectoryInfo) (package: N
             }
         ) (package.TemplateFile.FullName)
 
-let convertToPackage (createTemplate: AssemblyFile -> FileInfo) (assembly: AssemblyFile) : NugetPackage =
+let convertToNugetPackage (createTemplate: AssemblyFile -> FileInfo) (assembly: AssemblyFile) : NugetPackage =
     let getDependencies (assembly: AssemblyFile) =
         assembly.Dependencies
         |> Seq.map (function | Assembly f -> Some (f.Name, f.Version) | ExternalNuget n -> Some(n.Name, n.Version) | FrameworkAssembly _ -> None)
@@ -202,22 +202,47 @@ let convertToPackage (createTemplate: AssemblyFile -> FileInfo) (assembly: Assem
         Copyright = assembly.Copyright
     }
 
+let convertToNugetPackageWithCulture culture version convertToPackage (assembly: AssemblyFile) : NugetPackage =
+    let addCultureFolder files =
+        files 
+        |> Seq.map (fun (file, directory, exclude) -> (file, directory |> Option.bind (fun v -> Path.Combine(v, culture) |> Some), exclude))
+        |> Seq.toList
+
+    let addPackageBase () =
+        (assembly.Name.Substring(0, assembly.Name.Length - ".resources".Length), RequireExactly version)
+
+    let package = convertToPackage assembly
+
+    match assembly.Name with
+    | name when name.EndsWith(".resources") -> 
+            {
+                package with
+                    Files = package.Files |> addCultureFolder
+                    Dependencies = addPackageBase () :: package.Dependencies
+                    Version = version
+                    Name = assembly.Name.Replace(".resources", "." + culture)
+            }
+    | _ -> package
+
 let createIfNotExistsOutput (output: DirectoryInfo) =
     if output.Exists |> not then output.Create()
 
-let createPackagesForDirectory inputFolder outputFolder =
+let createPackagesForDirectory inputFolder outputFolder culture cultureVersion =
     outputFolder |> createIfNotExistsOutput
 
     let templateFile = FileInfo(Path.Combine(__SOURCE_DIRECTORY__, @"template.nuspec"))
 
     let createTemplate = createNugetTemplate templateFile outputFolder
     let createPackage = createNugetPackage (getNuget ()) outputFolder
+    let convertToPackage = 
+        if System.String.IsNullOrWhiteSpace(culture) then convertToNugetPackage createTemplate
+        else convertToNugetPackageWithCulture culture cultureVersion (convertToNugetPackage createTemplate)
 
     inputFolder
     |> searchAllAssemblies
     |> toGraph
     |> reverseDependencyOrder
-    |> Seq.map (convertToPackage createTemplate)
+    |> Seq.map convertToPackage
     |> Seq.map (fun p -> logfn "%A" p; p)
     |> Seq.iter createPackage
 
@@ -233,4 +258,7 @@ let source =
         else value |> DirectoryInfo
     with _ -> askSource ()
 
-createPackagesForDirectory source output
+let culture = getBuildParamOrDefault "culture" "fr"
+let cultureVersion = getBuildParamOrDefault "cultureVersion" "14.2.5.0"
+
+createPackagesForDirectory source output culture cultureVersion
