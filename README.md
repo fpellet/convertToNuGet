@@ -9,10 +9,10 @@ This project is inspired by https://github.com/caioproiete/DevExpress-NuGet and 
 ## Usage
 
 ```
-run.bat <dll directory> [output=<directory output of nuget packages>] [culture=<culture name> cultureVersion=<version of package base>]
+run.bat <dll directory> [output=<directory output of nuget packages>] [culture=<culture name> cultureVersion=<version of package base>] [publishUrl=<nuget feed url>]
 ```
 
-output, culture and cultureVersion are optional.
+output, publishUrl, culture and cultureVersion are optional.
 
 Default value of output is "./nugetpackages"
 
