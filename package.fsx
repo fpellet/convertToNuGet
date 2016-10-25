@@ -216,13 +216,19 @@ let convertToNugetPackageWithCulture culture version convertToPackage (assembly:
     let addPackageBase () =
         (assembly.Name.Substring(0, assembly.Name.Length - ".resources".Length), RequireExactly version)
 
+    let pathTemplate (file: FileInfo) =
+        let contentFile = sprintf """<contentFiles><files include="%s/%s" buildAction="None" copyToOutput="true" /></contentFiles>""" culture assembly.File.Name
+        processTemplates ["@language@", culture; "@contentFiles@", contentFile] [ file.FullName ]
+        file
+
     let package = convertToPackage assembly
 
     match assembly.Name with
     | name when name.EndsWith(".resources") -> 
             {
                 package with
-                    Files = package.Files |> addCultureFolder
+                    TemplateFile = pathTemplate package.TemplateFile
+                    Files = (assembly.File.FullName, Some "Content", None) :: package.Files |> addCultureFolder
                     Dependencies = addPackageBase () :: package.Dependencies
                     Version = version
                     Name = assembly.Name.Replace(".resources", "." + culture)
