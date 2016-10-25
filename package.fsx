@@ -13,19 +13,8 @@ open Fake
 
 let output = getBuildParamOrDefault "output" (Path.Combine(__SOURCE_DIRECTORY__, "nugetpackages")) |> DirectoryInfo
 
-let downloadNuget (output: FileInfo) =
-    use client = new System.Net.WebClient()
-
-    client.DownloadFile("https://dist.nuget.org/win-x86-commandline/latest/nuget.exe", output.FullName)
-
-let ifNotExist action (file: FileInfo) =
-    if file.Exists |> not then action file
-
-    file
-
 let getNuget () =
-    new FileInfo(Path.Combine(__SOURCE_DIRECTORY__, "nuget.exe"))
-    |> ifNotExist downloadNuget
+    new FileInfo(Path.Combine(__SOURCE_DIRECTORY__, "packages/NuGet.CommandLine/tools", "NuGet.exe"))
 
 type AssemblyFile = { File: FileInfo; Name: string; FullName: string; Dependencies: AssemblyDependency list; Version: string; Author: string; Copyright: string }
 and AssemblyDependency = 
