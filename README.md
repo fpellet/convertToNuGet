@@ -6,6 +6,20 @@ This can be useful if you use DevExpress for example. Indeed, it only provides d
 
 This project is inspired by https://github.com/caioproiete/DevExpress-NuGet and https://gist.github.com/smoothdeveloper/994522269a0a04c275c9
 
+## Usage
+
+```
+run.bat <dll directory> [output=<directory output of nuget packages>] [culture=<culture name> cultureVersion=<version of package base>]
+```
+
+output, culture and cultureVersion are optional.
+
+Default value of output is "./nugetpackages"
+
+Default value of culture and cultureVersion is empty. It's required only if dll directory contains dll with resources (file name end by .resources.dll). cultureVersion is very important because nuget use name convention.
+For example, if your dll is MyProject.dll with version 14.2.5.0, then you should create MyProject.fr.14.2.5.0 nuget package for fr resources. (https://docs.nuget.org/ndocs/create-packages/creating-localized-packages)
+
+
 ## License
 
 The MIT License (MIT)
