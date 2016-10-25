@@ -36,6 +36,19 @@ let checkIfNugetPackageExists (name: string) (version: string) =
     nugetSources 
     |> Seq.exists (checkIfNugetPackageExists' name version)
 
+let memoize f =
+    let cache = new System.Collections.Generic.Dictionary<_, _>()
+
+    (fun x y ->
+        match cache.TryGetValue((x, y)) with
+        | true, cachedValue -> cachedValue
+        | _ -> 
+            let result = f x y
+            cache.Add((x, y), result)
+            result)
+
+let checkIfNugetPackageExistsWithCache = memoize checkIfNugetPackageExists
+
 let (|Prefix|_|) (p:string) (s:string) =
     if s.StartsWith(p) then
         Some(s.Substring(p.Length))
