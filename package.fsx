@@ -75,10 +75,9 @@ let convertToAssemblyDependency (assembly: AssemblyNameReference) =
     let version = assembly.Version.ToString()
     let name = assembly.Name
 
-    match isFrameworkAssemblies assembly, checkIfNugetPackageExists name version with
-    | true, _ -> FrameworkAssembly { Name = name; Version = version }
-    | _, true -> ExternalNuget { Name = name; Version = version }
-    | _ -> Assembly { FullName = assembly.FullName; Name = name; Version = version }
+    if isFrameworkAssemblies assembly then FrameworkAssembly { Name = name; Version = version }
+    else if checkIfNugetPackageExistsWithCache name version then ExternalNuget { Name = name; Version = version }
+    else Assembly { FullName = assembly.FullName; Name = name; Version = version }
 
 let extractAssemblyDependencies (assembly: AssemblyDefinition) =
     assembly.MainModule.AssemblyReferences 
