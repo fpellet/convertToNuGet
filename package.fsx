@@ -149,7 +149,7 @@ type NugetPackage = {
     Copyright: string
 }
 
-let createNugetPackage (nugetFile: FileInfo) (output: DirectoryInfo) (package: NugetPackage) =
+let createNugetPackage (nugetFile: FileInfo) (output: DirectoryInfo) (publishUrl: string) (package: NugetPackage) =
     Fake.NuGetHelper.NuGet (
         fun p -> 
             {
@@ -165,6 +165,8 @@ let createNugetPackage (nugetFile: FileInfo) (output: DirectoryInfo) (package: N
                 Version = package.Version
                 Project = package.Name
                 Copyright = package.Copyright
+                Publish = System.String.IsNullOrWhiteSpace(publishUrl) |> not
+                PublishUrl = publishUrl
             }
         ) (package.TemplateFile.FullName)
 
@@ -227,13 +229,13 @@ let convertToNugetPackageWithCulture culture version convertToPackage (assembly:
 let createIfNotExistsOutput (output: DirectoryInfo) =
     if output.Exists |> not then output.Create()
 
-let createPackagesForDirectory inputFolder outputFolder culture cultureVersion =
+let createPackagesForDirectory inputFolder outputFolder publishUrl culture cultureVersion =
     outputFolder |> createIfNotExistsOutput
 
     let templateFile = FileInfo(Path.Combine(__SOURCE_DIRECTORY__, @"template.nuspec"))
 
     let createTemplate = createNugetTemplate templateFile outputFolder
-    let createPackage = createNugetPackage (getNuget ()) outputFolder
+    let createPackage = createNugetPackage (getNuget ()) outputFolder publishUrl
     let convertToPackage = 
         if System.String.IsNullOrWhiteSpace(culture) then convertToNugetPackage createTemplate
         else convertToNugetPackageWithCulture culture cultureVersion (convertToNugetPackage createTemplate)
@@ -260,5 +262,6 @@ let source =
 
 let culture = getBuildParamOrDefault "culture" ""
 let cultureVersion = getBuildParamOrDefault "cultureVersion" ""
+let publishUrl = getBuildParamOrDefault "publishUrl" ""
 
 createPackagesForDirectory source output culture cultureVersion
