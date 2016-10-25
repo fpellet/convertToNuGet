@@ -264,4 +264,4 @@ let culture = getBuildParamOrDefault "culture" ""
 let cultureVersion = getBuildParamOrDefault "cultureVersion" ""
 let publishUrl = getBuildParamOrDefault "publishUrl" ""
 
-createPackagesForDirectory source output culture cultureVersion
+createPackagesForDirectory source output publishUrl culture cultureVersion
