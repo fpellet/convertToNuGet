@@ -3,7 +3,7 @@ NUGET
     FAKE (4.41.8)
     Microsoft.Web.Xdt (2.1.1)
     Mono.Cecil (0.9.6.4)
-    NuGet.CommandLine (3.4.3)
+    NuGet.CommandLine (3.4.4-rtm-final)
     NuGet.Core (2.12)
       Microsoft.Web.Xdt (>= 2.1)
     QuickGraph (3.6.61119.7)

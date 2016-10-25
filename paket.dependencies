@@ -1,6 +1,6 @@
 source https://www.nuget.org/api/v2
 nuget Fake
 nuget Mono.Cecil
-nuget NuGet.CommandLine
+nuget NuGet.CommandLine prerelease
 nuget NuGet.Core
 nuget QuickGraph
