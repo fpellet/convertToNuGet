@@ -258,7 +258,7 @@ let source =
         else value |> DirectoryInfo
     with _ -> askSource ()
 
-let culture = getBuildParamOrDefault "culture" "fr"
-let cultureVersion = getBuildParamOrDefault "cultureVersion" "14.2.5.0"
+let culture = getBuildParamOrDefault "culture" ""
+let cultureVersion = getBuildParamOrDefault "cultureVersion" ""
 
 createPackagesForDirectory source output culture cultureVersion
