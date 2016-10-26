@@ -251,6 +251,7 @@ let createPackagesForDirectory inputFolder outputFolder publishUrl culture cultu
 
     inputFolder
     |> searchAllAssemblies
+    |> Seq.filter (fun a -> checkIfNugetPackageExistsWithCache a.Name a.Version |> not)
     |> toGraph
     |> reverseDependencyOrder
     |> Seq.map convertToPackage
