@@ -94,7 +94,7 @@ let convertToAssemblyFile (file: FileInfo) =
         Name = assembly.Name.Name
         FullName = assembly.FullName
         Dependencies = extractAssemblyDependencies assembly |> Seq.toList
-        Version = versionInfo.ProductVersion
+        Version = assembly.Name.Version.ToString()
         Copyright = versionInfo.LegalCopyright
         Author = versionInfo.CompanyName
     }
