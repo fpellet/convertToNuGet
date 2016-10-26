@@ -9,16 +9,17 @@ This project is inspired by https://github.com/caioproiete/DevExpress-NuGet and 
 ## Usage
 
 ```
-run.bat <dll directory> [output=<directory output of nuget packages>] [culture=<culture name> cultureVersion=<version of package base>] [publishUrl=<nuget feed url>]
+run.bat <dll directory> [output=<directory output of nuget packages>] [culture=<culture name> cultureVersion=<version of package base>] [publishUrl=<nuget api url>] [nugetSource=<nuget feed url>]
 ```
 
-output, publishUrl, culture and cultureVersion are optional.
+output, publishUrl, nugetSource, culture and cultureVersion are optional.
 
-Default value of output is "./nugetpackages"
+Default value of output is "./nugetpackages".
 
 Default value of culture and cultureVersion is empty. It's required only if dll directory contains dll with resources (file name end by .resources.dll). cultureVersion is very important because nuget use name convention.
 For example, if your dll is MyProject.dll with version 14.2.5.0, then you should create MyProject.fr.14.2.5.0 nuget package for fr resources. (https://docs.nuget.org/ndocs/create-packages/creating-localized-packages)
 
+Default value of nugetSource is output.
 
 ## License
 
