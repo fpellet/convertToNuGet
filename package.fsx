@@ -44,9 +44,11 @@ let normalizeNugetPackage (name: string, version: string) =
 let checkIfNugetPackageExists (name: string) (version: string) =
     let package = normalizeNugetPackage (name, version)
 
+    tracef "check nuget %A" package
+
     let exists = nugetSources |> Seq.exists (checkIfNugetPackageExists' package)
 
-    tracefn "check nuget %A -> %A" package exists
+    tracefn " -> %A" exists
 
     if exists then Some <| ExternalNuget { Name = fst package; Version = snd package }
     else None
