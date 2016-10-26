@@ -13,7 +13,7 @@ open Fake
 
 let output = getBuildParamOrDefault "output" (Path.Combine(__SOURCE_DIRECTORY__, "nugetpackages")) |> DirectoryInfo
 let publishUrl = getBuildParamOrDefault "publishUrl" ""
-let nugetSource = getBuildParamOrDefault "nugetSource" ""
+let nugetSource = getBuildParamOrDefault "nugetSource" output.FullName
 
 let getNuget () =
     new FileInfo(Path.Combine(__SOURCE_DIRECTORY__, "packages/NuGet.CommandLine/tools", "NuGet.exe"))
@@ -32,8 +32,7 @@ let checkIfNugetPackageExists' (name: string, version: string) source =
     
     repo.FindPackage(name, SemanticVersion.Parse(version)) <> null
 
-let nugetSources = [ if System.String.IsNullOrWhiteSpace(nugetSource) |> not then yield nugetSource
-                     yield "https://packages.nuget.org/api/v2" ]
+let nugetSources = [ nugetSource; "https://packages.nuget.org/api/v2" ]
 
 let normalizeNugetPackage (name: string, version: string) =
     match (name, version) with
