@@ -26,7 +26,7 @@ and ExternalNuget = { Name: string; Version: string }
 and AssemblyFileDependency = { Name: string; FullName: string; Version: string }
 and FrameworkAssembly = { Name: string; Version: string }
 
-let checkIfNugetPackageExists' (name: string) (version: string) source =
+let checkIfNugetPackageExists' (name: string, version: string) source =
     let repo = PackageRepositoryFactory.Default.CreateRepository(source)
     
     repo.FindPackage(name, SemanticVersion.Parse(version)) <> null
@@ -35,9 +35,21 @@ let nugetSources = [ if System.String.IsNullOrWhiteSpace(publishUrl) |> not then
                      else yield output.FullName
                      yield "https://packages.nuget.org/api/v2" ]
 
+let normalizeNugetPackage (name: string, version: string) =
+    match (name, version) with
+    | "dotless.Core", v -> "dotless", v
+    | "Newtonsoft.Json", "8.0.0.0" -> "Newtonsoft.Json", "8.0.1"
+    | n, v -> n, v
+
 let checkIfNugetPackageExists (name: string) (version: string) =
-    nugetSources 
-    |> Seq.exists (checkIfNugetPackageExists' name version)
+    let package = normalizeNugetPackage (name, version)
+
+    let exists = nugetSources |> Seq.exists (checkIfNugetPackageExists' package)
+
+    tracefn "check nuget %A -> %A" package exists
+
+    if exists then Some <| ExternalNuget { Name = fst package; Version = snd package }
+    else None
 
 let memoize f =
     let cache = new System.Collections.Generic.Dictionary<_, _>()
@@ -75,12 +87,14 @@ let isFrameworkAssemblies (assembly: AssemblyNameReference) =
     | _ -> false
 
 let convertToAssemblyDependency (assembly: AssemblyNameReference) =
-    let version = assembly.Version.ToString()
     let name = assembly.Name
+    let version = assembly.Version.ToString()
 
     if isFrameworkAssemblies assembly then FrameworkAssembly { Name = name; Version = version }
-    else if checkIfNugetPackageExistsWithCache name version then ExternalNuget { Name = name; Version = version }
-    else Assembly { FullName = assembly.FullName; Name = name; Version = version }
+    else
+        let maybeNuget = checkIfNugetPackageExistsWithCache name version
+        if maybeNuget.IsSome then maybeNuget.Value
+        else Assembly { FullName = assembly.FullName; Name = name; Version = version }
 
 let extractAssemblyDependencies (assembly: AssemblyDefinition) =
     assembly.MainModule.AssemblyReferences 
@@ -251,7 +265,7 @@ let createPackagesForDirectory inputFolder outputFolder publishUrl culture cultu
 
     inputFolder
     |> searchAllAssemblies
-    |> Seq.filter (fun a -> checkIfNugetPackageExistsWithCache a.Name a.Version |> not)
+    |> Seq.filter (fun a -> checkIfNugetPackageExistsWithCache a.Name a.Version |> Option.isNone)
     |> toGraph
     |> reverseDependencyOrder
     |> Seq.map convertToPackage
