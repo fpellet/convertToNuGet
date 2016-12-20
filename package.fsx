@@ -101,6 +101,11 @@ let extractAssemblyDependencies (assembly: AssemblyDefinition) =
     assembly.MainModule.AssemblyReferences 
     |> Seq.map convertToAssemblyDependency
 
+let orUnknownIfEmpty value =
+    if System.String.IsNullOrWhiteSpace(value) 
+        then "Unknown" 
+        else value
+
 let convertToAssemblyFile (file: FileInfo) =
     let assembly = AssemblyDefinition.ReadAssembly(file.FullName)
     let versionInfo = System.Diagnostics.FileVersionInfo.GetVersionInfo(file.FullName)
@@ -111,7 +116,7 @@ let convertToAssemblyFile (file: FileInfo) =
         Dependencies = extractAssemblyDependencies assembly |> Seq.toList
         Version = assembly.Name.Version.ToString()
         Copyright = versionInfo.LegalCopyright
-        Author = versionInfo.CompanyName
+        Author = versionInfo.CompanyName |> orUnknownIfEmpty
     }
 
 let searchAllAssemblies (folder: DirectoryInfo) =
@@ -222,7 +227,7 @@ let convertToNugetPackage (createTemplate: AssemblyFile -> FileInfo) (assembly: 
         Files = getFiles assembly |> Seq.toList
         Dependencies = getDependencies assembly |> Seq.toList
         FrameworkAssemblies = getFrameworkAssemblies assembly |> Seq.toList
-        Author = assembly.Author
+        Author = assembly.Author |> orUnknownIfEmpty
         Copyright = assembly.Copyright
         Language = ""
     }
