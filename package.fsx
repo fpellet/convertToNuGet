@@ -38,6 +38,8 @@ let normalizeNugetPackage (name: string, version: string) =
     match (name, version) with
     | "dotless.Core", v -> "dotless", v
     | "Newtonsoft.Json", "8.0.0.0" -> "Newtonsoft.Json", "8.0.1"
+    | "log4net", "1.2.10" -> "log4net", "1.2.10"
+    | "log4net", v -> "log4net", v.Replace("1.2.1", "2.0.")
     | n, v -> n, v
 
 let checkIfNugetPackageExists (name: string) (version: string) =
