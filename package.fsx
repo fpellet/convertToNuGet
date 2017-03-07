@@ -86,7 +86,9 @@ let isFrameworkAssemblies (assembly: AssemblyNameReference) =
     | "UIAutomationProvider"
     | "ReachFramework"
     | "WindowsFormsIntegration"
-    | "WindowsBase" -> true
+    | "WindowsBase"
+    | "Windows.Foundation.UniversalApiContract"
+    | "Windows.Foundation.FoundationContract" -> true
     | _ -> false
 
 let convertToAssemblyDependency (assembly: AssemblyNameReference) =
