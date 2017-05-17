@@ -131,6 +131,9 @@ let addDependenciesInGraph addEdge (assembliesByFullName: System.Collections.Gen
         match dependency with
         | FrameworkAssembly _
         | ExternalNuget _ -> None
+        | Assembly a when a.FullName = "PIA.SpMikeCtrl, Version=2.7.230.27, Culture=neutral, PublicKeyToken=a7078f88e8db8d11" ->
+            let key = assembliesByFullName |> Seq.find (fun a -> a.Key.StartsWith("PIA.SpMikeCtrl, Version=2.8"))
+            Some key.Value
         | Assembly a ->
             if assembliesByFullName.ContainsKey(a.FullName) |> not
             then traceError ("Missing dependency " + a.FullName)
